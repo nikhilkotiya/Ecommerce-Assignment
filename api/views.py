@@ -149,92 +149,13 @@ class Order(APIView):
                     return Response("We have less product left")
             else:
                 return Response("Please login to order")
-            
-# class test(APIView):
-#     def get_object(self,category_slug):
-#         try:
-#             return Category.objects.filter(slug=category_slug)
-#         except Category.DoesNotExist:
-#             raise Http404
-#     def get(self,request,category_slug,format=None):
-#         # print(self.category)
-#         # print()
-#         # print(category_slug)
-#         c=self.get_object(category_slug)
-#         # print(c)
-#         # pass
-#         # print(product)
-#         data=C.objects.filter(category__slug=category_slug)
-#         print(data)
-#         s=ProductSerializer(data,many=True)
-#         # serializer=CategorySerializer(c,many=True)
-#         # print(serializer.data)
-#         return Response(s.data) 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# class PaymentView(APIView):
-#     def post(self, request, *args, **kwargs):
-#             user=request.user
-#         if request.order
-#         return Response(status=HTTP_200_OK)
-#         except:
-#             return Response("Error")
-#         # except stripe.error.CardError as e:
-#         #     body = e.json_body
-#         #     err = body.get('error', {})
-#         #     return Response({"message": f"{err.get('message')}"}, status=HTTP_400_BAD_REQUEST)
-
-#         # except stripe.error.RateLimitError as e:
-#         #     # Too many requests made to the API too quickly
-#         #     messages.warning(self.request, "Rate limit error")
-#         #     return Response({"message": "Rate limit error"}, status=HTTP_400_BAD_REQUEST)
-
-#         # except stripe.error.InvalidRequestError as e:
-#         #     print(e)
-#         #     # Invalid parameters were supplied to Stripe's API
-#         #     return Response({"message": "Invalid parameters"}, status=HTTP_400_BAD_REQUEST)
-
-#         # except stripe.error.AuthenticationError as e:
-#         #     # Authentication with Stripe's API failed
-#         #     # (maybe you changed API keys recently)
-#         #     return Response({"message": "Not authenticated"}, status=HTTP_400_BAD_REQUEST)
-
-#         # except stripe.error.APIConnectionError as e:
-#         #     # Network communication with Stripe failed
-#         #     return Response({"message": "Network error"}, status=HTTP_400_BAD_REQUEST)
-
-#         # except stripe.error.StripeError as e:
-#         #     # Display a very generic error to the user, and maybe send
-#         #     # yourself an email
-#         #     return Response({"message": "Something went wrong. You were not charged. Please try again."}, status=HTTP_400_BAD_REQUEST)
-
-#         # except Exception as e:
-#         #     # send an email to ourselves
-#         #     return Response({"message": "A serious error occurred. We have been notifed."}, status=HTTP_400_BAD_REQUEST)
-
-#         # return Response({"message": "Invalid data received"}, status=HTTP_400_BAD_REQUEST)
 
 class Allorder(APIView):
     def get(self,request):
         user=request.user
         if user.is_authenticated:
             data=OrderItem.objects.filter(ordered=True,user=user)
-            # serializer=OrderS(data,many=True)
             if data.exists():
                 serializer=OrderS(data,many=True)
                 return Response(serializer.data)
@@ -320,10 +241,6 @@ class Summary(APIView):
                 'Refund': cancel_order,
                 'income': income,
             }
-            # serializer=Summary(data,many=True)
-            # print("2")
-            # if serializer.is_valid:
-            #     return Response(serializer.data)
             return Response(data)
             
         else:
