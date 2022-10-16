@@ -14,8 +14,6 @@ django-rest-auth==0.9.5
 django-rest-knox==4.1.0
 django-versatileimagefield==2.2
 djangorestframework==3.13.1
-djangorestframework-jwt==1.11.0
-djangorestframework-simplejwt==5.0.0
 idna==3.3
 oauthlib==3.1.1
 Pillow==9.0.0

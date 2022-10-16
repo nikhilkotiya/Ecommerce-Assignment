@@ -6,36 +6,12 @@ class ProductSerializer(serializers.ModelSerializer):
     # user = serializers.ReadOnlyField()
     class Meta:
         model=Product
-        fields=(
-            # "slug",
-            "name",
-            # "user",
-            # "get_absoulte_url",
-            "description",
-            "category",
-            "price",
-            "avilable_units",
-            "get_image_url",
-            "actual_value",
-            "oder_this_peoduct",
-        )
+        fields="__all__"
 class AllProductSerializer(serializers.ModelSerializer):
     # user = serializers.ReadOnlyField()
     class Meta:
         model=Product
-        fields=(
-            "name",
-            "get_absoulte_url",
-            "description",
-            "category",
-            "price",
-            "avilable_units",
-            "get_image_url",
-            "oder_this_peoduct",
-        )
-
-
-
+        fields="__all__"
 
 
 class Count_Of_order_item(serializers.Serializer):
