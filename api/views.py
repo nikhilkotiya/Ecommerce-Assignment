@@ -1,6 +1,5 @@
 
-# from math import prod
-from this import s
+from .helper import get_next_prev_url
 from django.shortcuts import render
 from .serializer import *
 from .models import *
@@ -88,30 +87,39 @@ class Product_List(viewsets.ViewSet):
         self.product=Product()
 
     def List(self,request,format=None):
+        new_data = request.query_params
+        page_no = int(new_data.get("page_no",1))
+        page_size = 10
         products=self.redis_utils.get("Product_List")
         if products == None:
-            print("comming from DB")
             products=Product.objects.filter(avilable_units__gte=1)
             count=len(products)
             self.redis_utils.set("Product_List_count", count, timeout=30)
             qs_json = json.loads(serializers.serialize('json', products))
-            # print(qs_json)
             products = Product.convert_to_output_format(qs_json)
-            print(products)
-            # book_details = model_to_dict(qs_json)
-            # data=json.dumps(book_details)
             self.redis_utils.set("Product_List", products, timeout=30)
         else:
-            print("comming from redis")
             count=self.redis_utils.get("Product_List_count")
             if count==None:
                 count=Product.objects.filter(avilable_units__gte=1).count()
                 self.redis_utils.set("Product_List_count", count, timeout=30)
-            print(count)
-            # serializer = AllProductSerializer(products,many=True)
+        offset = (page_no - 1) * page_size
+        data=[]
+        products = products[offset:offset + page_size]
+        data.append(products)
+        count = count
+        base_url = request.build_absolute_uri()
+        next_, prev_ = get_next_prev_url(
+            base_url,
+            page_no,
+            count,
+            page_size
+        )
         products={
             "count":count,
-            "product_data":products
+            "product_data":data,
+            "prev_url":prev_,
+            "next_url":next_
         }
         return Response(products)
 
@@ -190,7 +198,14 @@ class Product_List(viewsets.ViewSet):
             }
             return Response(result,status=404)
         
-        product=Product.objects.get(product_id=product_id)
+        try:
+            product=Product.objects.get(product_id=product_id)
+        except Product.DoesNotExist as e:
+            result={
+                "status":500,
+                "message":"product DoesNotExist"
+            }
+            return Response(result,status=500)
         if product==None or product==[]:
             status=400
             message="product Not found"
@@ -498,3 +513,9 @@ from rest_framework import generics
 #                 return Response("Your product is added")
 #             return Response(serializer.errors) 
 #         return Response("Login First")
+
+
+
+
+
+
