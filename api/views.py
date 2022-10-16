@@ -1,3 +1,6 @@
+
+# from math import prod
+from this import s
 from django.shortcuts import render
 from .serializer import *
 from .models import *
@@ -5,40 +8,249 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.generics import RetrieveAPIView
 from django.http import HttpResponse, Http404
 from rest_framework import status
+from django.core import serializers
+from django.core.cache import cache
+from django.forms.models import model_to_dict
 from datetime import datetime
 from django.utils import timezone
-from time import time
+import time
 from django.core.mail import EmailMessage
-class Add_Product(APIView):
-    def post(self,request,*args, **kwargs):
-        user=request.user
-        if user.is_authenticated:
-            data=request.data
-            date=datetime.now().date()
-            slug=user.username+"-"f'{int(time())}'
-            print(data)
-            serializer=ProductSerializer(data=data,many=True)
-            if serializer.is_valid():
-                print(serializer.data)
-                serializer.save(user=request.user,slug=slug)
-                return Response("Your product is added")
-            return Response(serializer.errors) 
-        return Response("Login First")
+from .utils import redis_utils
+import json
+from django.core.cache.backends.base import DEFAULT_TIMEOUT
+from .helper import filter_dict_keys,get_hash_key
+
+# from .faker import model_obj
+
+def update_request_data(data_str, meta):
+    data = {}
+    fields_list = ['uid', 'access_token', 'HTTP_FULLNAME', 'HTTP_UID', 'HTTP_FIREBASE_TOKEN',
+                   'HTTP_FIREBASE_REGISTRATION_TOKEN', 'HTTP_ACCOUNT_KIT_TOKEN', 'HTTP_TYPE', 'HTTP_APP_VERSION',
+                   'HTTP_DEVICE_ID', "HTTP_USER_TG", "HTTP_USER_ID", "HTTP_LANGUAGE", "HTTP_FEED_AB", "HTTP_WHICH_APP",
+                   "HTTP_GENDER", "HTTP_DEVICE_CREATE_TIME", "HTTP_DEVICE_TYPE", "HTTP_WEB_PLATFORM"]
+    try:
+        data = json.loads(data_str)
+    except:
+        data = {}
+    required_meta_data = {}
+    for key in fields_list:
+        if meta.get(key):
+            required_meta_data[key] = meta.get(key)
+    if required_meta_data.get('HTTP_UID'):
+        required_meta_data['uid'] = required_meta_data.get('HTTP_UID')
+    if required_meta_data.get('uid') is None:
+        required_meta_data['uid'] = 'dummy_uid'
+    if required_meta_data.get('type') and required_meta_data.get('login_type') is None:
+        required_meta_data['login_type'] = required_meta_data.get('type')
+    if required_meta_data.get('HTTP_DEVICE_ID'):
+        required_meta_data['device_id'] = required_meta_data.get('HTTP_DEVICE_ID')
+    if required_meta_data.get('HTTP_GENDER'):
+        required_meta_data['gender'] = required_meta_data.get('HTTP_GENDER')
+    if required_meta_data.get('HTTP_LANGUAGE'):
+        required_meta_data['language'] = required_meta_data.get('HTTP_LANGUAGE')
+    if required_meta_data.get('HTTP_DOB'):
+        required_meta_data['dob'] = required_meta_data.get('HTTP_DOB')
+    if required_meta_data.get('HTTP_DEVICE_TYPE'):
+        required_meta_data['device_type'] = required_meta_data.get('HTTP_DEVICE_TYPE')
+    if required_meta_data.get('HTTP_FULLNAME') and data.get('fullname') is None:  ### if not an update profile call
+        fullname = required_meta_data.get('HTTP_FULLNAME')
+        try:
+            app_version_code = int(required_meta_data.get('HTTP_APP_VERSION', 0))
+            if app_version_code >= 265:
+                base64_bytes = fullname.encode('ascii')
+                message_bytes = base64.b64decode(base64_bytes)
+                fullname = message_bytes.decode('ascii')
+        except Exception as e:
+            fullname = 'error'
+        required_meta_data['fullname'] = fullname
+    if required_meta_data.get('HTTP_USER_TG'):
+        required_meta_data['user_tg'] = required_meta_data.get('HTTP_USER_TG')
+    if required_meta_data.get('HTTP_DEVICE_CREATE_TIME'):
+        required_meta_data['device_create_time'] = required_meta_data.get('HTTP_DEVICE_CREATE_TIME')
+    data.update(required_meta_data)
+    return json.dumps(data)
 
 
 
 
+CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
 
-class Product_List(APIView):
-    def get(self,request,format=None):
-        products=Product.objects.filter(avilable_units__gte=1)
-        serializer = AllProductSerializer(products,many=True)
-        return Response(serializer.data)
+class Product_List(viewsets.ViewSet):
+    serializer_class = ProductSerializer
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.redis_utils=cache
+        self.product=Product()
 
+    def List(self,request,format=None):
+        products=self.redis_utils.get("Product_List")
+        if products == None:
+            print("comming from DB")
+            products=Product.objects.filter(avilable_units__gte=1)
+            count=len(products)
+            self.redis_utils.set("Product_List_count", count, timeout=30)
+            qs_json = json.loads(serializers.serialize('json', products))
+            # print(qs_json)
+            products = Product.convert_to_output_format(qs_json)
+            print(products)
+            # book_details = model_to_dict(qs_json)
+            # data=json.dumps(book_details)
+            self.redis_utils.set("Product_List", products, timeout=30)
+        else:
+            print("comming from redis")
+            count=self.redis_utils.get("Product_List_count")
+            if count==None:
+                count=Product.objects.filter(avilable_units__gte=1).count()
+                self.redis_utils.set("Product_List_count", count, timeout=30)
+            print(count)
+            # serializer = AllProductSerializer(products,many=True)
+        products={
+            "count":count,
+            "product_data":products
+        }
+        return Response(products)
+
+    def perform_create(self,request):
+        payload=request.data
+        print(payload)
+        result = {}
+        # if payload:
+            # payload = json.dumps(payload)
+            # payload = json.loads(payload)
+        status = 400
+        # print(payload)
+        message="Product is not created"
+        if payload:
+            try:
+                product_id = None
+                if payload.get("product_id"):
+                    product_id = payload.get("product_id")
+                if product_id is None:
+                    key = "testing" + str(time.time())
+                    product_id = get_hash_key(key) 
+                update_data = filter_dict_keys(payload, self.product.output_fields)
+                if request.user.is_authenticated:
+                    update_data["user"] = request.user.id
+                else:
+                    update_data["user"] = payload.get("user")
+                category_obj = Category.objects.get(id=update_data.get("category"))
+                update_data['category']=category_obj
+                update_data["url"]="http://127.0.0.1:8000/product/"+str(product_id)
+                obj, is_created = Product.objects.update_or_create(
+                        product_id=product_id,
+                        defaults=update_data
+                    )
+                novel_details = model_to_dict(obj)
+                if is_created:
+                    self.redis_utils.delete("Product_List")
+                    # we need to add set add
+                else:
+                    self.redis_utils.delete("Product_List")
+                result=novel_details
+                print(novel_details)
+                if is_created:
+                    message="Product created Successfully"
+                    status=200
+                else:
+                    message="Product updated Successfully"
+                    status=200
+            except Exception as e:
+                message = e
+                print(e)
+
+            print(type(result))
+            print(result)
+            print(type(result)) 
+        response = {
+            'status': status,
+            'message': message,
+            'results': result
+        }
+        print(type(response))
+        # try:
+        #     return Response(response, status=status)
+        from django.http import JsonResponse
+        return Response(response,status=status)
+    
+    def destroy(self,request,pk=None):
+        payload=request.data
+        print("Jere")
+        product_id = payload.get("Product_id",pk)
+        status=404
+        message="please send the product_id"
+        if product_id==None:
+            result={
+                "status":status,
+                "message":message
+            }
+            return Response(result,status=404)
+        
+        product=Product.objects.get(product_id=product_id)
+        if product==None or product==[]:
+            status=400
+            message="product Not found"
+            result={
+                "status":status,
+                "message":message
+            }
+            return Response(result,status=404)
+        product.delete()
+        self.redis_utils.delete("Product_List")
+        message="product Deleted Succesfully"
+        result={
+            "status":200,
+            "message":message
+        }
+        return Response(result,status=200)
+    
+    
+    def product_details(self,request,pk=None):
+        payload=request.data
+        product={}
+        id=payload.get("product_id",pk)
+        if id==None:
+            message="Someting went wrong"
+            result={
+                "status":'400',
+                "message":message
+            }
+        key="product"+str(id) 
+        data=self.redis_utils.get(key)
+        if data is None or data==[]:
+            try:
+                print("comming form db")
+                data=Product.objects.get(product_id=id)  
+                qs_json = model_to_dict(data)
+                data=ProductSerializer(data)  
+                # print(data)
+                data=data.data
+                # data=json.loads(data)
+                # print(data)
+                # qs_json = Product.convert_to_output_format(qs_json)
+                self.redis_utils.set(key,json.dumps(qs_json),timeout=30) 
+            except Exception as e:
+                print(e)
+                message="Not found"
+                result={
+                    "status":'404',
+                    "message":message
+                }
+                return Response(result,status=404)
+        else:
+            data=json.loads(data)
+        result={
+            "status":200,
+            "message":"product fatch successfuly",
+            'data':data
+        }
+        # qs_json = json.loads(serializers.serialize('json', product))
+        # products = Product.convert_to_output_format(product)
+        return Response(result)
 
 class Category_Product(APIView):
     def get(self,request,category_slug,format=None):
@@ -48,7 +260,6 @@ class Category_Product(APIView):
         if data.exists():
             return Response(s.data)
         return Response("No Product avilable")
-
 
 class Single_Product(APIView):
     def get_object(self,category_slug,product_slug):
@@ -78,6 +289,11 @@ class Single_Product(APIView):
                 return Response(serializer.data)
             return Response(serializer.errors)
         return Response("You dont have permission to do changes in this product")
+
+
+
+
+
 
 class Order(APIView):
     def get(self,request,category_slug,product_slug):
@@ -149,8 +365,6 @@ class Order(APIView):
                     return Response("We have less product left")
             else:
                 return Response("Please login to order")
-
-
 class Allorder(APIView):
     def get(self,request):
         user=request.user
@@ -213,8 +427,6 @@ class cancel_order(APIView):
             refund=send_email(request,amount,product)
         return Response("Order canceled")
 
-        
-
 class Summary(APIView):
     def get(self,request,product_slug,*args, **kwargs):
         user=request.user
@@ -255,6 +467,7 @@ class Summary(APIView):
         return Response("Errpr")
 
 class AddCouponView(APIView):
+
     def post(self, request, *args, **kwargs):
         code = request.data.get('code', None)
         if code is None:
@@ -265,3 +478,23 @@ class AddCouponView(APIView):
         order.coupon = coupon
         order.save()
         return Response(status=HTTP_200_OK)
+
+from rest_framework import generics
+# class Add_Product(viewsets.ViewSet):
+#     queryset = Product.objects.all()
+#     serializer_class = ProductSerializer
+#     def perform_create(self,request,*args, **kwargs):
+#         user=request.user
+#         if user.is_authenticated:
+#             data=request.data
+#             date=datetime.now().date()
+#             slug=user.username+"-"f'{int(time())}'
+#             print(data)
+#             serializer=ProductSerializer(data=data,many=True)
+#             if serializer.is_valid():
+#                 print(serializer.data)
+#                 serializer.save(user=request.user,slug=slug)
+#                 cache.delete("Product_List")
+#                 return Response("Your product is added")
+#             return Response(serializer.errors) 
+#         return Response("Login First")
