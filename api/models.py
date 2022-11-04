@@ -43,7 +43,7 @@ class Product(models.Model):
         self.redis_utils=cache
         self.output_fields = get_model_fields(Product)
 
-    def convert_to_output_format(qs_json):
+    def convert_to_output_format(self,qs_json):
         meta_fields = Product._meta.get_fields()
         fields = [f.name for f in meta_fields]
         primary_key_name = Product._meta.pk.name

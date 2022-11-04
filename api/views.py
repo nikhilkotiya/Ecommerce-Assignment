@@ -96,7 +96,7 @@ class Product_List(viewsets.ViewSet):
             count=len(products)
             self.redis_utils.set("Product_List_count", count, timeout=30)
             qs_json = json.loads(serializers.serialize('json', products))
-            products = Product.convert_to_output_format(qs_json)
+            products = self.product.convert_to_output_format(qs_json)
             self.redis_utils.set("Product_List", products, timeout=30)
         else:
             count=self.redis_utils.get("Product_List_count")
