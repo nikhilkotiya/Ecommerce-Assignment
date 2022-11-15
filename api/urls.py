@@ -26,8 +26,8 @@ urlpatterns = [
     path('add_product/',perform_create),
     path('delete_pro/<int:pk>',delete_pro),
     path('my_oders/',Allorder.as_view()),
-    path('product/<int:pk>',product_details)
-    # path('my_order/',Allorder.as_view()),
+    path('product/<int:pk>',product_details),
+    path('send_email/',send_email_to_user),
     # path('summary/<slug:product_slug>/',Summary.as_view()),
     # path('product/<slug:category_slug>/',Category_Product.as_view()),
     # path('product/<slug:category_slug>/<slug:product_slug>/',Single_Product.as_view()),

@@ -146,7 +146,7 @@ class Product_List(viewsets.ViewSet):
                     update_data["user"] = request.user.id
                 else:
                     update_data["user"] = payload.get("user")
-                category_obj = Category.objects.get(id=update_data.get("category"))
+                    category_obj = Category.objects.get(id=update_data.get("category"))
                 update_data['category']=category_obj
                 update_data["url"]="http://127.0.0.1:8000/product/"+str(product_id)
                 obj, is_created = Product.objects.update_or_create(
@@ -391,13 +391,19 @@ class Allorder(APIView):
             return Response("No Order")
         else:
             return Response("Please Login")
-def send_email(request,amount,product):
-    email = EmailMessage({
-        'User':request.user,
-        'Amount':amount,
-        'Canceled_product':product,
-    })
-    email.send()
+
+
+def send_email_to_user(request):
+    import smtplib
+    con = smtplib.SMTP("smtp.gmail.com",587)
+    con.ehlo()
+    con.starttls()
+    admin_email = 'nikhilkotiya8@gmail.com'
+    admin_password = 'kibuuihdslenrsrm'
+    con.login(admin_email,admin_password)
+    msg = "Otp is "
+    con.sendmail("email",'nihkilkotiya8@gmail.com',"Subject:Password Reset \n\n"+msg)
+    return HttpResponse("workd")
 class cancel_order(APIView):
     def get(self,request,category_slug,product_slug):
         user=request.user
