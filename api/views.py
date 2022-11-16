@@ -77,7 +77,7 @@ def update_request_data(data_str, meta):
 
 
 
-CACHE_TTL = getattr(settings, 'CACHE_TTL', DEFAULT_TIMEOUT)
+CACHE_TTL = getattr(settings, 'CACHE_TTL', 86400)
 
 class Product_List(viewsets.ViewSet):
     serializer_class = ProductSerializer
