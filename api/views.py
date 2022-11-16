@@ -90,9 +90,11 @@ class Product_List(viewsets.ViewSet):
         new_data = request.query_params
         page_no = int(new_data.get("page_no",1))
         page_size = 10
+        is_redis=None
         products=self.redis_utils.get("Product_List")
         if products == None:
             print("comming from db")
+            is_redis=True
             products=Product.objects.filter(avilable_units__gte=1)
             count=len(products)
             self.redis_utils.set("Product_List_count", count, timeout=30)
@@ -100,6 +102,7 @@ class Product_List(viewsets.ViewSet):
             products = self.product.convert_to_output_format(qs_json)
             self.redis_utils.set("Product_List", products, timeout=30)
         else:
+            is_redis=False
             print("comming from redis")
             count=self.redis_utils.get("Product_List_count")
             if count==None:
@@ -121,7 +124,8 @@ class Product_List(viewsets.ViewSet):
             "count":count,
             "product_data":data,
             "prev_url":prev_,
-            "next_url":next_
+            "next_url":next_,
+            "Comming from redis":is_redis
         }
         return Response(products)
 
