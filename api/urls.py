@@ -3,21 +3,21 @@ from django.urls import path
 from .views import *
 from rest_framework.routers import DefaultRouter
 router = DefaultRouter()
-router.register(r'product', Product_List, basename='novels')
+router.register(r'product', Product_Viewsets, basename='novels')
 
-perform_create=Product_List.as_view({
+perform_create=Product_Viewsets.as_view({
     'post' : 'perform_create'
 })
 
-get_product=Product_List.as_view({
+get_product=Product_Viewsets.as_view({
     'get' : 'List'
 })
 
-delete_pro=Product_List.as_view({
+delete_pro=Product_Viewsets.as_view({
     'get':'destroy'
 })
 
-product_details=Product_List.as_view({
+product_details=Product_Viewsets.as_view({
     'get':'product_details'
 })
 urlpatterns = [
