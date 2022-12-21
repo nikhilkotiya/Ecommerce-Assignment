@@ -79,7 +79,7 @@ def update_request_data(data_str, meta):
 
 CACHE_TTL = getattr(settings, 'CACHE_TTL', 86400)
 
-class Product_List(viewsets.ViewSet):
+class Product_Viewsets(viewsets.ViewSet):
     serializer_class = ProductSerializer
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -90,11 +90,8 @@ class Product_List(viewsets.ViewSet):
         new_data = request.query_params
         page_no = int(new_data.get("page_no",1))
         page_size = 10
-        is_redis=None
         products=self.redis_utils.get("Product_List")
         if products == None:
-            print("comming from db")
-            is_redis=False
             products=Product.objects.filter(avilable_units__gte=1)
             count=len(products)
             self.redis_utils.set("Product_List_count", count, timeout=30)
@@ -102,40 +99,44 @@ class Product_List(viewsets.ViewSet):
             products = self.product.convert_to_output_format(qs_json)
             self.redis_utils.set("Product_List", products, timeout=30)
         else:
-            is_redis=True
-            print("comming from redis")
             count=self.redis_utils.get("Product_List_count")
             if count==None:
                 count=Product.objects.filter(avilable_units__gte=1).count()
                 self.redis_utils.set("Product_List_count", count, timeout=30)
         offset = (page_no - 1) * page_size
-        data=[]
-        products = products[offset:offset + page_size]
-        data.append(products)
-        count = count
-        base_url = request.build_absolute_uri()
-        next_, prev_ = get_next_prev_url(
-            base_url,
-            page_no,
-            count,
-            page_size
-        )
-        products={
-            "count":count,
-            "product_data":data,
-            "prev_url":prev_,
-            "next_url":next_,
-            "Comming from redis":is_redis
-        }
-        return Response(products)
+        if offset >= count != 0 | count == 0:
+            result = {
+                    'novels': [],
+                    'novel_count': 0,
+                    'message' : 'Novels Not Found',
+                    'status':200,
+                    }
+        else:
+            data=[]
+            products = products[offset:offset + page_size]
+            data.append(products)
+            count = count
+            base_url = request.build_absolute_uri()
+            next_, prev_ = get_next_prev_url(
+                base_url,
+                page_no,
+                count,
+                page_size
+            )
+            result={
+                "count":count,
+                "product_data":data,
+                "prev_url":prev_,
+                "next_url":next_,
+                "status":200
+            }
+
+        return Response(result)
 
     def perform_create(self,request):
         payload=request.data
         print(payload)
         result = {}
-        # if payload:
-            # payload = json.dumps(payload)
-            # payload = json.loads(payload)
         status = 400
         # print(payload)
         message="Product is not created"
@@ -185,10 +186,6 @@ class Product_List(viewsets.ViewSet):
             'message': message,
             'results': result
         }
-        print(type(response))
-        # try:
-        #     return Response(response, status=status)
-        from django.http import JsonResponse
         return Response(response,status=status)
     
     def destroy(self,request,pk=None):
@@ -229,7 +226,6 @@ class Product_List(viewsets.ViewSet):
         }
         return Response(result,status=200)
     
-    
     def product_details(self,request,pk=None):
         payload=request.data
         product={}
@@ -244,15 +240,10 @@ class Product_List(viewsets.ViewSet):
         data=self.redis_utils.get(key)
         if data is None or data==[]:
             try:
-                print("comming form db")
                 data=Product.objects.get(product_id=id)  
                 qs_json = model_to_dict(data)
                 data=ProductSerializer(data)  
-                # print(data)
                 data=data.data
-                # data=json.loads(data)
-                # print(data)
-                # qs_json = Product.convert_to_output_format(qs_json)
                 self.redis_utils.set(key,json.dumps(qs_json),timeout=30) 
             except Exception as e:
                 print(e)
@@ -269,63 +260,23 @@ class Product_List(viewsets.ViewSet):
             "message":"product fatch successfuly",
             'data':data
         }
-        # qs_json = json.loads(serializers.serialize('json', product))
-        # products = Product.convert_to_output_format(product)
         return Response(result)
-
-class Category_Product(APIView):
-    def get(self,request,category_slug,format=None):
-        data=Product.objects.filter(category__slug=category_slug)
-        print(data)
-        s=AllProductSerializer(data,many=True)
-        if data.exists():
-            return Response(s.data)
-        return Response("No Product avilable")
-
-class Single_Product(APIView):
-    def get_object(self,category_slug,product_slug):
-        try:
-            return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
-        except Product.DoesNotExist:
-            raise Http404  
-    def get(self,request,category_slug,product_slug,format=None):
-        product=self.get_object(category_slug,product_slug)
-        serializer={}
-        if product.user == request.user:
-            serializer=ProductSerializer(product) 
-        else:
-            serializer=AllProductSerializer(product)
-        return Response(serializer.data)
-    
-    
-    
-    def patch(self, request,category_slug,product_slug,format=None):
-        product=self.get_object(category_slug,product_slug)
-        print(product)
-            # request.data.
-        if product.user == request.user:
-            serializer=ProductSerializer(product,data=request.data,partial=True)
-            if serializer.is_valid():   
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors)
-        return Response("You dont have permission to do changes in this product")
-
-
-
-
 
 
 class Order(APIView):
-    def get(self,request,category_slug,product_slug):
-        product=Product.objects.get(slug=product_slug)
-        print(product)
+    def get(self,request):
+        payload = json.loads(request.data)
+        id = payload.get(id)
+        try:
+            product=Product.objects.get(id=id)
+        except Product.DoesNotExist:
+             return Response("Product don't Exists",status=400)
         user=request.user
         if user.is_authenticated:
             if product.avilable_units >= 1:
                 serializer=AllProductSerializer(product)
                 try:
-                    order=OrderItem.objects.get(user=request.user,product__slug=product_slug)
+                    order=OrderItem.objects.get(user=request.user,id=id)
                     return Response("You already order this Item")
                 except OrderItem.DoesNotExist:
                     if serializer.is_valid:
@@ -333,6 +284,7 @@ class Order(APIView):
                     return Response(serializer.errors)
             return Response("Out of stock")
         return Response("Please Login")
+
     def post(self,request,category_slug,product_slug):
         try:
             order=OrderItem.objects.get(user=request.user,product__slug=product_slug)
@@ -386,8 +338,8 @@ class Order(APIView):
                     return Response("We have less product left")
             else:
                 return Response("Please login to order")
-class Allorder(APIView):
-    def get(self,request):
+
+    def list_all_orders(self,request):
         user=request.user
         if user.is_authenticated:
             data=OrderItem.objects.filter(ordered=True,user=user)
@@ -397,6 +349,44 @@ class Allorder(APIView):
             return Response("No Order")
         else:
             return Response("Please Login")
+
+class Category_Product(APIView):
+    def get(self,request,category_slug,format=None):
+        data=Product.objects.filter(category__slug=category_slug)
+        print(data)
+        s=AllProductSerializer(data,many=True)
+        if data.exists():
+            return Response(s.data)
+        return Response("No Product avilable")
+
+class Single_Product(APIView):
+    def get_object(self,category_slug,product_slug):
+        try:
+            return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
+        except Product.DoesNotExist:
+            raise Http404  
+    def get(self,request,category_slug,product_slug,format=None):
+        product=self.get_object(category_slug,product_slug)
+        serializer={}
+        if product.user == request.user:
+            serializer=ProductSerializer(product) 
+        else:
+            serializer=AllProductSerializer(product)
+        return Response(serializer.data)
+    
+    
+    
+    def patch(self, request,category_slug,product_slug,format=None):
+        product=self.get_object(category_slug,product_slug)
+        print(product)
+            # request.data.
+        if product.user == request.user:
+            serializer=ProductSerializer(product,data=request.data,partial=True)
+            if serializer.is_valid():   
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors)
+        return Response("You dont have permission to do changes in this product")
 
 
 def send_email_to_user(request):
@@ -505,29 +495,5 @@ class AddCouponView(APIView):
         order.coupon = coupon
         order.save()
         return Response(status=HTTP_200_OK)
-
-from rest_framework import generics
-# class Add_Product(viewsets.ViewSet):
-#     queryset = Product.objects.all()
-#     serializer_class = ProductSerializer
-#     def perform_create(self,request,*args, **kwargs):
-#         user=request.user
-#         if user.is_authenticated:
-#             data=request.data
-#             date=datetime.now().date()
-#             slug=user.username+"-"f'{int(time())}'
-#             print(data)
-#             serializer=ProductSerializer(data=data,many=True)
-#             if serializer.is_valid():
-#                 print(serializer.data)
-#                 serializer.save(user=request.user,slug=slug)
-#                 cache.delete("Product_List")
-#                 return Response("Your product is added")
-#             return Response(serializer.errors) 
-#         return Response("Login First")
-
-
-
-
 
 
