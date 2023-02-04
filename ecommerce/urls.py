@@ -8,6 +8,7 @@ from django.urls import path,include
 from django.conf.urls import url
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # path('search/', include('haystack.urls')),
     path('', include('api.urls')),    
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
