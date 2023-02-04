@@ -40,9 +40,10 @@ INSTALLED_APPS = [
     'api',
     'django.contrib.sites',
     'allauth',
+    # 'haystack',
     'rest_framework',
     'rest_framework.authtoken',
-    'rest_auth',
+    # 'rest_auth',
 ]
 SITE_ID = 1
 MIDDLEWARE = [
@@ -57,11 +58,16 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'ecommerce.urls'
 
+
 TEMPLATES = [
     {
+        # Template backend to be used, For example Jinja
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        # Directories for templates
         'DIRS': [],
         'APP_DIRS': True,
+ 
+        # options to configure
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -72,7 +78,6 @@ TEMPLATES = [
         },
     },
 ]
-
 WSGI_APPLICATION = 'ecommerce.wsgi.application'
 #
 # Database
@@ -154,3 +159,18 @@ REDIS_PORT = 6379
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+
+# HAYSTACK_CONNECTIONS = {
+#               'default': {
+#                     'ENGINE': 'haystack.backends.elasticsearch_backend.ElasticsearchSearchEngine',
+#                     'URL': 'http://127.0.0.1:9200/',
+#                     'INDEX_NAME': 'haystack_books',
+#               },
+#     }
+
+# HAYSTACK_SIGNAL_PROCESSOR = 'haystack.signals.RealtimeSignalProcessor'
+import os
+TEMPLATE_DIRS = (
+    os.path.join(BASE_DIR,  'templates'),
+)

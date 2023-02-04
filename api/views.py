@@ -1,6 +1,6 @@
 
 from .helper import get_next_prev_url
-from django.shortcuts import render
+from django.shortcuts import render,get_object_or_404
 from .serializer import *
 from .models import *
 from django.http import Http404
@@ -19,63 +19,16 @@ from datetime import datetime
 from django.utils import timezone
 import time
 from django.core.mail import EmailMessage
-from .utils import redis_utils
+from .utils import RedisUtils
 import json
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from .helper import filter_dict_keys,get_hash_key
 
 # from .faker import model_obj
-
-def update_request_data(data_str, meta):
-    data = {}
-    fields_list = ['uid', 'access_token', 'HTTP_FULLNAME', 'HTTP_UID', 'HTTP_FIREBASE_TOKEN',
-                   'HTTP_FIREBASE_REGISTRATION_TOKEN', 'HTTP_ACCOUNT_KIT_TOKEN', 'HTTP_TYPE', 'HTTP_APP_VERSION',
-                   'HTTP_DEVICE_ID', "HTTP_USER_TG", "HTTP_USER_ID", "HTTP_LANGUAGE", "HTTP_FEED_AB", "HTTP_WHICH_APP",
-                   "HTTP_GENDER", "HTTP_DEVICE_CREATE_TIME", "HTTP_DEVICE_TYPE", "HTTP_WEB_PLATFORM"]
-    try:
-        data = json.loads(data_str)
-    except:
-        data = {}
-    required_meta_data = {}
-    for key in fields_list:
-        if meta.get(key):
-            required_meta_data[key] = meta.get(key)
-    if required_meta_data.get('HTTP_UID'):
-        required_meta_data['uid'] = required_meta_data.get('HTTP_UID')
-    if required_meta_data.get('uid') is None:
-        required_meta_data['uid'] = 'dummy_uid'
-    if required_meta_data.get('type') and required_meta_data.get('login_type') is None:
-        required_meta_data['login_type'] = required_meta_data.get('type')
-    if required_meta_data.get('HTTP_DEVICE_ID'):
-        required_meta_data['device_id'] = required_meta_data.get('HTTP_DEVICE_ID')
-    if required_meta_data.get('HTTP_GENDER'):
-        required_meta_data['gender'] = required_meta_data.get('HTTP_GENDER')
-    if required_meta_data.get('HTTP_LANGUAGE'):
-        required_meta_data['language'] = required_meta_data.get('HTTP_LANGUAGE')
-    if required_meta_data.get('HTTP_DOB'):
-        required_meta_data['dob'] = required_meta_data.get('HTTP_DOB')
-    if required_meta_data.get('HTTP_DEVICE_TYPE'):
-        required_meta_data['device_type'] = required_meta_data.get('HTTP_DEVICE_TYPE')
-    if required_meta_data.get('HTTP_FULLNAME') and data.get('fullname') is None:  ### if not an update profile call
-        fullname = required_meta_data.get('HTTP_FULLNAME')
-        try:
-            app_version_code = int(required_meta_data.get('HTTP_APP_VERSION', 0))
-            if app_version_code >= 265:
-                base64_bytes = fullname.encode('ascii')
-                message_bytes = base64.b64decode(base64_bytes)
-                fullname = message_bytes.decode('ascii')
-        except Exception as e:
-            fullname = 'error'
-        required_meta_data['fullname'] = fullname
-    if required_meta_data.get('HTTP_USER_TG'):
-        required_meta_data['user_tg'] = required_meta_data.get('HTTP_USER_TG')
-    if required_meta_data.get('HTTP_DEVICE_CREATE_TIME'):
-        required_meta_data['device_create_time'] = required_meta_data.get('HTTP_DEVICE_CREATE_TIME')
-    data.update(required_meta_data)
-    return json.dumps(data)
-
-
-
+# from d
+# def delete_by_id(obj,id):
+#     obj = get_object_or_404(obj,id)
+#     obj.delete()
 
 CACHE_TTL = getattr(settings, 'CACHE_TTL', 86400)
 
@@ -83,7 +36,7 @@ class Product_Viewsets(viewsets.ViewSet):
     serializer_class = ProductSerializer
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.redis_utils=cache
+        self.redis_utils=RedisUtils()
         self.product=Product()
 
     def List(self,request,format=None):
@@ -134,7 +87,19 @@ class Product_Viewsets(viewsets.ViewSet):
         return Response(result)
 
     def perform_create(self,request):
-        payload=request.data
+        number = 1
+        # while number<100:
+        #     timestamp = int(number)
+        #     self.redis_utils.add_to_sorted_set('test', timestamp,number*5)
+        #     number = number+1
+        data = self.redis_utils.remove_from_sorted_set('test',1)
+        value = self.redis_utils.get_all_memeber_from_sorted_set('test',0,10)
+        print(value)
+        return HttpResponse("done")
+        # if value:
+            # value = value.decode("utf-8")
+        payload = request.data.dict()
+        # payload=request.data
         print(payload)
         result = {}
         status = 400
@@ -154,18 +119,29 @@ class Product_Viewsets(viewsets.ViewSet):
                 else:
                     update_data["user"] = payload.get("user")
                     category_obj = Category.objects.get(id=update_data.get("category"))
+                image_url = request.FILES.getlist('images')
+                # for oneimage in image_url:
+                    # serializer = ProductSerializer(data=image_url)
+                    # if serializer.is_valid():
+                        # update_data['images'] = serializer.data.get('image_url')
                 update_data['category']=category_obj
+                # import base64
+                # update_data['images'] = base64.b64decode(update_data['images'])
                 update_data["url"]="http://127.0.0.1:8000/product/"+str(product_id)
                 obj, is_created = Product.objects.update_or_create(
                         product_id=product_id,
                         defaults=update_data
                     )
+                # update_data.pop('images'
                 novel_details = model_to_dict(obj)
+                novel_details.pop('images')
+                novel_details['images']="http://127.0.0.1:8000/media/files/image/Group_155_1f14it2.png"
                 if is_created:
-                    self.redis_utils.delete("Product_List")
+                    pass
+                    # self.redis_utils.delete("Product_List")
                     # we need to add set add
-                else:
-                    self.redis_utils.delete("Product_List")
+                # else:
+                    # self.redis_utils.delete("Product_List")
                 result=novel_details
                 print(novel_details)
                 if is_created:
@@ -201,23 +177,16 @@ class Product_Viewsets(viewsets.ViewSet):
             }
             return Response(result,status=404)
         
-        try:
-            product=Product.objects.get(product_id=product_id)
-        except Product.DoesNotExist as e:
-            result={
-                "status":500,
-                "message":"product DoesNotExist"
-            }
-            return Response(result,status=500)
-        if product==None or product==[]:
-            status=400
-            message="product Not found"
-            result={
-                "status":status,
-                "message":message
-            }
-            return Response(result,status=404)
-        product.delete()
+        # try:
+        #     product=Product.objects.get(product_id=product_id)
+        # except Product.DoesNotExist as e:
+        #     result={
+        #         "status":500,
+        #         "message":"product DoesNotExist"
+        #     }
+        #     return Response(result,status=400)
+        obj = get_object_or_404(Product,product_id = product_id)
+        obj.delete()
         self.redis_utils.delete("Product_List")
         message="product Deleted Succesfully"
         result={
@@ -286,58 +255,50 @@ class Order(APIView):
         return Response("Please Login")
 
     def post(self,request,category_slug,product_slug):
-        try:
-            order=OrderItem.objects.get(user=request.user,product__slug=product_slug)
-            return Response("You already order this Item")
-        except OrderItem.DoesNotExist:
-            buy_product=request.data.get('count')
-            if buy_product==0 or buy_product is None:
-                return Response("Enter the count of Product you want to buy")
-            product=Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
-            user=request.user
-            print(product)
-            print(user)
-            if user.is_authenticated:
-                if product.avilable_units-buy_product >= 0:
-                    amount=product.price
-                    print(amount)
-                    amount=amount*buy_product
-                    payment = Payment.objects.create(
-                        amount=amount,
-                        user=request.user,
-                    )
-                    d = timezone.now()
-                    payment.save()
-                    Place_order = OrderItem()
-                    Place_order.ordered_date=timezone.now()
-                    Place_order.amount=amount
-                    Place_order.product=product
-                    Place_order.ordered=True
-                    Place_order.number_of_items=buy_product
-                    Place_order.payment=payment
-                    Place_order.user=user
-                    Place_order.save()
-                    print(buy_product)
-                    print(amount)
-                    date=datetime.now().date()
-                    count=Orders_count.objects.create(date=date,selled=buy_product,product=product)
-                    New_data=product.avilable_units
-                    New_data=New_data-buy_product
-                    product.avilable_units=New_data
-                    product.save()
-                    context={
-                        "Product Name":product.name,
-                        "Quantity":buy_product,
-                        "Ammount":amount,
-                        "Message":"Order Done"
-                    }
-                    return Response(context)
-                else:
-                    if product.avilable_units == 0:
-                        return Response("Out of stock")
-                    return Response("We have less product left")
+        user=request.user
+        print(product)
+        print(user)
+        if user.is_authenticated:
+            if product.avilable_units-buy_product >= 0:
+                amount=product.price
+                print(amount)
+                amount=amount*buy_product
+                payment = Payment.objects.create(
+                    amount=amount,
+                    user=request.user,
+                )
+                d = timezone.now()
+                payment.save()
+                Place_order = OrderItem()
+                Place_order.ordered_date=timezone.now()
+                Place_order.amount=amount
+                Place_order.product=product
+                Place_order.ordered=True
+                Place_order.number_of_items=buy_product
+                Place_order.payment=payment
+                Place_order.user=user
+                Place_order.save()
+                print(buy_product)
+                print(amount)
+                date=datetime.now().date()
+                count=Orders_count.objects.create(date=date,selled=buy_product,product=product)
+                New_data=product.avilable_units
+                New_data=New_data-buy_product
+                product.avilable_units=New_data
+                product.save()
+                context={
+                    "Product Name":product.name,
+                    "Quantity":buy_product,
+                    "Ammount":amount,
+                    "Message":"Order Done"
+                }
+                return Response(context)
             else:
-                return Response("Please login to order")
+                if product.avilable_units == 0:
+                    return Response("Out of stock")
+                return Response("We have less product left")
+        else:
+            return Response("Please login to order")
 
     def list_all_orders(self,request):
         user=request.user
@@ -497,3 +458,7 @@ class AddCouponView(APIView):
         return Response(status=HTTP_200_OK)
 
 
+
+
+def test(request):
+    return render(request,"search.html")

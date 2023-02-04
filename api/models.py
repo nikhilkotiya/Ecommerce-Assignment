@@ -1,9 +1,10 @@
 from django.db import models
-from django_countries.fields import CountryField
+# from django_countries.fields import CountryField
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.cache import cache
 from .helper import get_model_fields
+from django.shortcuts import get_object_or_404
 from time import time
 DEMO_CHOICES =(
     ("P", "Phone"),
@@ -35,7 +36,7 @@ class Product(models.Model):
     status = models.CharField(null=True, max_length=50, default='draft')
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    # images = models.ImageField(upload_to = "files/image",default="files/image/image0.png",blank=True,null=True) 
+    images = models.ImageField(max_length=100,upload_to = "files/image",default="files/image/image0.png",blank=True,null=True) 
     url=models.CharField(max_length=40,null=True,blank=True)
 
     def __init__(self, *args, **kwargs):
@@ -64,6 +65,33 @@ class Product(models.Model):
             final_result.append(entity_details)
         return final_result
     
+
+    @staticmethod
+    def view_product(by_id=False,product_id=None):
+        message = 'Product not found'
+        data=[]
+        if by_id:
+            obj = get_object_or_404(Product,product_id=product_id)
+            data_dict={
+                'id':obj.product_id,
+                'name':obj.name,
+                'description':obj.description
+            }
+            data.append(data_dict)
+            message = 'Product found'
+            return message,data
+        obj = Product.objects.filter(is_disabled=0)
+        if len(obj):
+            message = 'Product found'
+            for datas in obj:
+                datas
+                data_dict={
+                    'id':obj.product_id,
+                    'name':obj.name,
+                    'description':obj.description
+                }
+                data.append(data_dict)
+        return message,data
 
 
     # def get_absoulte_url(self):
