@@ -32,6 +32,42 @@ from .helper import filter_dict_keys,get_hash_key
 
 CACHE_TTL = getattr(settings, 'CACHE_TTL', 86400)
 
+from django.http import HttpResponseBadRequest
+from django.http import JsonResponse
+def custom_400(request, exception=None):
+    return JsonResponse({'error': str(exception)}, status=400)
+
+
+def handle_exception(request, exception):
+    # This view will be triggered by Django when the custom exception is raised
+    return JsonResponse({'error': str(exception.message)}, status=400)
+
+from rest_framework import exceptions
+
+from rest_framework.exceptions import APIException
+
+class CustomException(APIException):
+    status_code = 400
+    default_detail = 'Custom exception occurred'
+
+def get_object_or_raise(model, **kwargs):
+    try:
+        return model.objects.get(**kwargs)
+    except model.DoesNotExist:
+        raise CustomException({'error': f"{model.__name__} with {kwargs} does not exist"})
+
+# def get_object_or_raise(model, **kwargs):
+#     try:
+#         return model.objects.get(**kwargs)
+#     except model.DoesNotExist:
+#         raise ObjectNotFoundException(model, kwargs)
+def handle_exception(request, exception):
+    if isinstance(exception, Http404):
+        return JsonResponse({'error': 'Not found'}, status=400)
+
+handler400 = 'api.views.handle_exception'
+
+
 class Product_Viewsets(viewsets.ViewSet):
     serializer_class = ProductSerializer
     def __init__(self, *args, **kwargs):
@@ -87,15 +123,6 @@ class Product_Viewsets(viewsets.ViewSet):
         return Response(result)
 
     def perform_create(self,request):
-        number = 1
-        # while number<100:
-        #     timestamp = int(number)
-        #     self.redis_utils.add_to_sorted_set('test', timestamp,number*5)
-        #     number = number+1
-        data = self.redis_utils.remove_from_sorted_set('test',1)
-        value = self.redis_utils.get_all_memeber_from_sorted_set('test',0,10)
-        print(value)
-        return HttpResponse("done")
         # if value:
             # value = value.decode("utf-8")
         payload = request.data.dict()
@@ -185,7 +212,9 @@ class Product_Viewsets(viewsets.ViewSet):
         #         "message":"product DoesNotExist"
         #     }
         #     return Response(result,status=400)
-        obj = get_object_or_404(Product,product_id = product_id)
+        obj  = get_object_or_raise(Product,product_id = product_id , name="Nikhil Kotiya")
+        # if bool_value==False:
+            # return Response(obj)
         obj.delete()
         self.redis_utils.delete("Product_List")
         message="product Deleted Succesfully"
@@ -456,9 +485,3 @@ class AddCouponView(APIView):
         order.coupon = coupon
         order.save()
         return Response(status=HTTP_200_OK)
-
-
-
-
-def test(request):
-    return render(request,"search.html")
