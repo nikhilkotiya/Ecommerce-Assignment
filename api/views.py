@@ -67,7 +67,7 @@ def handle_exception(request, exception):
 
 handler400 = 'api.views.handle_exception'
 
-
+from .query import get_all_vaid_product
 class Product_Viewsets(viewsets.ViewSet):
     serializer_class = ProductSerializer
     def __init__(self, *args, **kwargs):
@@ -79,10 +79,11 @@ class Product_Viewsets(viewsets.ViewSet):
         new_data = request.query_params
         page_no = int(new_data.get("page_no",1))
         page_size = 10
-        products=self.redis_utils.get("Product_List")
+        products = None
+        # products=self.redis_utils.get("Product_List")
         if products == None:
-            products=Product.objects.filter(avilable_units__gte=1)
-            count=len(products)
+            products=get_all_vaid_product()
+            count=products.count()
             self.redis_utils.set("Product_List_count", count, timeout=30)
             qs_json = json.loads(serializers.serialize('json', products))
             products = self.product.convert_to_output_format(qs_json)
@@ -203,18 +204,7 @@ class Product_Viewsets(viewsets.ViewSet):
                 "message":message
             }
             return Response(result,status=404)
-        
-        # try:
-        #     product=Product.objects.get(product_id=product_id)
-        # except Product.DoesNotExist as e:
-        #     result={
-        #         "status":500,
-        #         "message":"product DoesNotExist"
-        #     }
-        #     return Response(result,status=400)
         obj  = get_object_or_raise(Product,product_id = product_id , name="Nikhil Kotiya")
-        # if bool_value==False:
-            # return Response(obj)
         obj.delete()
         self.redis_utils.delete("Product_List")
         message="product Deleted Succesfully"
