@@ -95,9 +95,9 @@ class Product_Viewsets(viewsets.ViewSet):
         offset = (page_no - 1) * page_size
         if offset >= count != 0 | count == 0:
             result = {
-                    'novels': [],
-                    'novel_count': 0,
-                    'message' : 'Novels Not Found',
+                    'products': [],
+                    'products_count': 0,
+                    'message' : 'products Not Found',
                     'status':200,
                     }
         else:
