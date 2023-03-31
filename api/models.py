@@ -16,13 +16,6 @@ class Category(models.Model):
     name=models.CharField(max_length=255,choices = DEMO_CHOICES)
     slug=models.SlugField()
 
-    # class Meta:
-    #     ordering=('name',)
-    # def __str__(self):
-    #     return self.name
-    # def get_absoulte_url(self):
-    #     return f'/{self.slug}/'
-
 class Product(models.Model):
     product_id = models.CharField(primary_key=True, max_length=60)
     user=models.CharField(null=False,max_length=60)
@@ -93,15 +86,6 @@ class Product(models.Model):
                 data.append(data_dict)
         return message,data
 
-
-    # def get_absoulte_url(self):
-    #     return 'http://127.0.0.1:8000/product'f'/{self.category.slug}/{self.slug}/' 
-
-    # def get_image_url(self):
-    #     return 'http://127.0.0.1:8000'+self.images.url
-
-    # def oder_this_peoduct(self):
-    #     return 'http://127.0.0.1:8000/product'f'/{self.category.slug}/{self.slug}/order' 
 
 class Payment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
